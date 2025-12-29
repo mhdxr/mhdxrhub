@@ -549,12 +549,17 @@ local function ToggleFPSBoost(state)
     end
 end
 
+-- =====================================================
+-- 📊 MINI FPS + PING HUD (FINAL FIXED VERSION)
+-- =====================================================
 local function TogglePerfHUD(state)
     local CoreGui = game:GetService("CoreGui")
     local RunService = game:GetService("RunService")
     local Stats = game:GetService("Stats")
 
+    -- ===============================
     -- OFF
+    -- ===============================
     if not state then
         if SettingsState.PerfHUD.Gui then
             SettingsState.PerfHUD.Gui:Destroy()
@@ -563,20 +568,29 @@ local function TogglePerfHUD(state)
         return
     end
 
-    -- cleanup
+    -- ===============================
+    -- CLEANUP OLD
+    -- ===============================
     if CoreGui:FindFirstChild("mhdxrhub_PerfHUD") then
         CoreGui.mhdxrhub_PerfHUD:Destroy()
     end
 
+    -- ===============================
+    -- GUI ROOT
+    -- ===============================
     local gui = Instance.new("ScreenGui")
     gui.Name = "mhdxrhub_PerfHUD"
     gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
     gui.Parent = CoreGui
     SettingsState.PerfHUD.Gui = gui
 
+    -- ===============================
+    -- FRAME
+    -- ===============================
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.fromOffset(120, 38)
-    frame.Position = UDim2.fromScale(0.02, 0.18)
+    frame.Size = UDim2.fromOffset(140, 42)
+    frame.Position = UDim2.fromScale(0.02, 0.15)
     frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
     frame.BackgroundTransparency = 0.1
     frame.BorderSizePixel = 0
@@ -584,52 +598,84 @@ local function TogglePerfHUD(state)
     frame.Draggable = true
     frame.Parent = gui
 
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
 
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1
+    stroke.Color = Color3.fromRGB(0, 255, 150)
+    stroke.Parent = frame
+
+    -- ===============================
+    -- LABEL
+    -- ===============================
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -8, 1, -6)
-    label.Position = UDim2.fromOffset(4, 3)
+    label.Size = UDim2.new(1, -10, 1, -6)
+    label.Position = UDim2.fromOffset(5, 3)
     label.BackgroundTransparency = 1
+    label.TextWrapped = false
+    label.RichText = false
     label.Font = Enum.Font.GothamBold
-    label.TextSize = 12
-    label.TextXAlignment = Left
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.TextColor3 = Color3.fromRGB(0, 255, 150)
     label.Text = "FPS: -- | Ping: --"
-    label.TextColor3 = Color3.fromRGB(0,255,150)
     label.Parent = frame
 
-    -- FPS
-    local fps, frames = 0, 0
+    -- ===============================
+    -- FPS CALC (REAL)
+    -- ===============================
+    local fps = 0
+    local frames = 0
     local lastTick = os.clock()
 
-    RunService.RenderStepped:Connect(function()
+    local fpsConn
+    fpsConn = RunService.RenderStepped:Connect(function()
         frames += 1
         if os.clock() - lastTick >= 1 then
             fps = frames
             frames = 0
             lastTick = os.clock()
         end
+
+        -- auto cleanup
+        if not gui.Parent then
+            fpsConn:Disconnect()
+        end
     end)
 
+    -- ===============================
+    -- UPDATE LOOP (PING + COLOR)
+    -- ===============================
     task.spawn(function()
         while gui.Parent do
             local ping = 0
+
             pcall(function()
                 ping = math.floor(
                     Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
                 )
             end)
 
+            -- COLOR LOGIC
             if fps < 30 then
-                label.TextColor3 = Color3.fromRGB(255,80,80)
+                label.TextColor3 = Color3.fromRGB(255, 80, 80) -- FPS DROP
             elseif ping > 300 then
-                label.TextColor3 = Color3.fromRGB(255,80,80)
+                label.TextColor3 = Color3.fromRGB(255, 80, 80) -- PING BAD
             elseif ping > 200 then
-                label.TextColor3 = Color3.fromRGB(255,200,0)
+                label.TextColor3 = Color3.fromRGB(255, 200, 0) -- PING WARNING
             else
-                label.TextColor3 = Color3.fromRGB(0,255,150)
+                label.TextColor3 = Color3.fromRGB(0, 255, 150) -- GOOD
             end
 
-            label.Text = ("FPS: %d | Ping: %dms"):format(fps, ping)
+            label.Text = string.format(
+                "FPS: %d | Ping: %dms",
+                fps,
+                ping
+            )
+
             task.wait(0.5)
         end
     end)
