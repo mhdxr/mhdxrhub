@@ -78,6 +78,10 @@ local UpdateRadar  = net["RF/UpdateFishingRadar"]
 
 local SettingsState = { 
     FPSBoost = { Active = false, BackupLighting = {} }, 
+    PerfHUD = {
+        Active = false,
+        Gui = nil
+    },
     VFXRemoved = false,
     DestroyerActive = false,
     PopupDestroyed = false,
@@ -543,6 +547,92 @@ local function ToggleFPSBoost(state)
             if v:IsA("BasePart") then v.Material = Enum.Material.Plastic; v.CastShadow = false end
         end
     end
+end
+
+local function TogglePerfHUD(state)
+    local CoreGui = game:GetService("CoreGui")
+    local RunService = game:GetService("RunService")
+    local Stats = game:GetService("Stats")
+
+    -- OFF
+    if not state then
+        if SettingsState.PerfHUD.Gui then
+            SettingsState.PerfHUD.Gui:Destroy()
+            SettingsState.PerfHUD.Gui = nil
+        end
+        return
+    end
+
+    -- cleanup
+    if CoreGui:FindFirstChild("mhdxrhub_PerfHUD") then
+        CoreGui.mhdxrhub_PerfHUD:Destroy()
+    end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "mhdxrhub_PerfHUD"
+    gui.ResetOnSpawn = false
+    gui.Parent = CoreGui
+    SettingsState.PerfHUD.Gui = gui
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.fromOffset(120, 38)
+    frame.Position = UDim2.fromScale(0.02, 0.18)
+    frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    frame.BackgroundTransparency = 0.1
+    frame.BorderSizePixel = 0
+    frame.Active = true
+    frame.Draggable = true
+    frame.Parent = gui
+
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -8, 1, -6)
+    label.Position = UDim2.fromOffset(4, 3)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.TextXAlignment = Left
+    label.Text = "FPS: -- | Ping: --"
+    label.TextColor3 = Color3.fromRGB(0,255,150)
+    label.Parent = frame
+
+    -- FPS
+    local fps, frames = 0, 0
+    local lastTick = os.clock()
+
+    RunService.RenderStepped:Connect(function()
+        frames += 1
+        if os.clock() - lastTick >= 1 then
+            fps = frames
+            frames = 0
+            lastTick = os.clock()
+        end
+    end)
+
+    task.spawn(function()
+        while gui.Parent do
+            local ping = 0
+            pcall(function()
+                ping = math.floor(
+                    Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+                )
+            end)
+
+            if fps < 30 then
+                label.TextColor3 = Color3.fromRGB(255,80,80)
+            elseif ping > 300 then
+                label.TextColor3 = Color3.fromRGB(255,80,80)
+            elseif ping > 200 then
+                label.TextColor3 = Color3.fromRGB(255,200,0)
+            else
+                label.TextColor3 = Color3.fromRGB(0,255,150)
+            end
+
+            label.Text = ("FPS: %d | Ping: %dms"):format(fps, ping)
+            task.wait(0.5)
+        end
+    end)
 end
 
 local function ExecuteRemoveVFX()
@@ -1670,6 +1760,22 @@ TabSettings:Section({ Title = "Optimization" })
 TabSettings:Button({ Title = "Anti-AFK", Desc = "Status: Active (Always On)", Icon = "clock", Callback = function() WindUI:Notify({ Title = "Anti-AFK", Content = "Permanently Active", Duration = 2 }) end })
 TabSettings:Button({ Title = "Destroy Fish Popup", Desc = "Permanently removes 'Small Notification' UI", Icon = "trash-2", Callback = function() if SettingsState.PopupDestroyed then WindUI:Notify({Title = "UI", Content = "Already Destroyed!", Duration = 2}) return end; SettingsState.PopupDestroyed = true; ExecuteDestroyPopup(); WindUI:Notify({Title = "UI", Content = "Popup Destroyed!", Duration = 3}) end })
 TabSettings:Toggle({ Title = "FPS Boost (Potato)", Desc = "Low Graphics", Icon = "monitor", Value = false, Callback = function(state) ToggleFPSBoost(state) end })
+TabSettings:Toggle({
+    Title = "FPS + Ping HUD (Mini)",
+    Desc = "Floating performance monitor (mobile)",
+    Icon = "activity",
+    Value = false,
+    Callback = function(state)
+        SettingsState.PerfHUD.Active = state
+        TogglePerfHUD(state)
+
+        WindUI:Notify({
+            Title = "Performance HUD",
+            Content = state and "Enabled" or "Disabled",
+            Duration = 2
+        })
+    end
+})
 TabSettings:Button({ Title = "Remove VFX (Permanent)", Desc = "Delete Effects", Icon = "trash-2", Callback = function() if SettingsState.VFXRemoved then WindUI:Notify({Title = "VFX", Content = "Already Removed!", Duration = 2}) return end; SettingsState.VFXRemoved = true; ExecuteRemoveVFX(); WindUI:Notify({Title = "VFX", Content = "Deleted!", Duration = 2}) end })
 local RarityList = {"Common","Uncommon","Rare","Epic","Legendary","Mythic","Secret",}
 
